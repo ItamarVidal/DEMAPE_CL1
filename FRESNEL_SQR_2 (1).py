@@ -1,4 +1,3 @@
-# Databricks notebook source
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
@@ -56,15 +55,15 @@ def calculate_fresnel_profile(f_fresnel, x, I_collimated, d, w_target):
     return I
 
 # Função de custo para otimização
-def cost_function(params, x, y, w0, lambda_, I0, I_desired_x, I_desired_y):
-    f_col, f_fresnel_x, f_fresnel_y = params
-    I_collimated_x = calculate_collimated_profile(f_col, x, w0, lambda_, I0)
-    I_collimated_y = calculate_collimated_profile(f_col, y, w0, lambda_, I0)
-    I_x = calculate_fresnel_profile(f_fresnel_x, x, I_collimated_x, d, w_x)
-    I_y = calculate_fresnel_profile(f_fresnel_y, y, I_collimated_y, d, w_y)
-    error_x = np.mean((I_x - I_desired_x)**2)
-    error_y = np.mean((I_y - I_desired_y)**2)
-    return error_x + error_y
+##
+##
+##
+##
+##    Deixado propositalmente em branco #########
+##
+##
+##
+##
 
 # Otimizar os parâmetros
 initial_params = [0.1, 0.1, 0.1]
@@ -119,15 +118,9 @@ x_lens = np.linspace(-lens_size_x/2, lens_size_x/2, 100)
 y_lens = np.linspace(-lens_size_y/2, lens_size_y/2, 100)
 X_lens, Y_lens = np.meshgrid(x_lens, y_lens)
 
-# Função para calcular o perfil da lente de Fresnel com ranhuras bidimensionais (fase mais suave)
+# Função para calcular o perfil da lente de Fresnel com ranhuras bidimensionais
 def fresnel_grooves_2d(f_fresnel_x, f_fresnel_y, x, y, num_grooves, groove_width_x, groove_width_y, n):
     z = np.zeros_like(x)
-    # Fase quadrática contínua
-    phi_x = (2 * np.pi / lambda_) * (x**2 / (2 * f_fresnel_x))
-    phi_y = (2 * np.pi / lambda_) * (y**2 / (2 * f_fresnel_y))
-    phase = phi_x + phi_y
-    
-    # Criar uma grade de ranhuras, mas com transições suaves
     for i in range(num_grooves):
         for j in range(num_grooves):
             x_min = -lens_size_x/2 + i * groove_width_x
@@ -135,20 +128,10 @@ def fresnel_grooves_2d(f_fresnel_x, f_fresnel_y, x, y, num_grooves, groove_width
             y_min = -lens_size_y/2 + j * groove_width_y
             y_max = -lens_size_y/2 + (j + 1) * groove_width_y
             mask = (x >= x_min) & (x < x_max) & (y >= y_min) & (y < y_max)
-            
-            # Calcular o centro da ranhura
-            x_center = (x_min + x_max) / 2
-            y_center = (y_min + y_max) / 2
-            
-            # Aplicar uma transição suave usando uma gaussiana centrada na ranhura
-            sigma_smooth = min(groove_width_x, groove_width_y) / 2  # Largura da suavização
-            smooth_transition = np.exp(-((x[mask] - x_center)**2 + (y[mask] - y_center)**2) / (2 * sigma_smooth**2))
-            
-            # Suavizar a fase dentro da ranhura
-            local_phase = phase[mask] % (2 * np.pi)
-            smoothed_phase = local_phase * (1 - smooth_transition) + (local_phase.mean() * smooth_transition)
-            z[mask] = (lambda_ / (2 * np.pi)) * smoothed_phase
-    
+            # Fase quadrática em x e y com diferentes distâncias focais
+            phi_x = (2 * np.pi / lambda_) * (x[mask]**2 / (2 * f_fresnel_x))
+            phi_y = (2 * np.pi / lambda_) * (y[mask]**2 / (2 * f_fresnel_y))
+            z[mask] = (lambda_ / (2 * np.pi)) * ((phi_x + phi_y) % (2 * np.pi))
     return z
 
 # Calcular o perfil da lente
@@ -167,10 +150,10 @@ plt.show()
 # Plotar a lente de Fresnel (vista 2D - mapa de calor)
 plt.figure(figsize=(8, 6))
 plt.imshow(Z_lens, extent=(-lens_size_x/2, lens_size_x/2, -lens_size_y/2, lens_size_y/2), cmap='viridis', origin='lower')
-plt.colorbar(label="Thickness (m)")
-plt.xlabel("Position X (m)")
-plt.ylabel("Position Y (m)")
-plt.title("2D Fresnel Grooves")
+plt.colorbar(label="Espessura (m)")
+plt.xlabel("Posição X (m)")
+plt.ylabel("Posição Y (m)")
+plt.title("Lente de Fresnel com Ranhuras Bidimensionais (Vista 2D)")
 plt.show()
 
 # --- Propagação da Luz com Difração (Fresnel Propagation) ---
@@ -194,17 +177,13 @@ field_fft = np.fft.fft2(field_led)
 field_propagated_to_lens_fft = field_fft * propagator_led_to_lens
 field_at_lens = np.fft.ifft2(field_propagated_to_lens_fft)
 
-# Fase da lente de Fresnel (contínua, sem modulo 2pi)
+# Fase da lente de Fresnel
 phi_x = (k / (2 * f_fresnel_x_opt)) * X_lens_fine**2
 phi_y = (k / (2 * f_fresnel_y_opt)) * Y_lens_fine**2
 lens_phase = np.exp(1j * (phi_x + phi_y))
 
-# Adicionar apodização gaussiana na lente para suavizar as bordas
-apodization = np.exp(-(X_lens_fine**2 + Y_lens_fine**2) / (2 * (lens_size_x/2)**2))
-lens_transmission = lens_phase * apodization
-
 # Campo após a lente
-field_after_lens = field_at_lens * lens_transmission
+field_after_lens = field_at_lens * lens_phase
 
 # Propagação da lente até o anteparo (z = 5.95 m)
 propagator_lens_to_screen = np.exp(1j * d_lens_to_screen * np.sqrt(k**2 - KX**2 - KY**2))
@@ -223,7 +202,7 @@ y_anteparo = np.linspace(-6, 6, 500)  # 10 m de comprimento com margem
 X_anteparo, Y_anteparo = np.meshgrid(x_anteparo, y_anteparo)
 
 # --- Visualização 2D da Propagação da Luz (Plano x-z) com Ray Tracing ---
-num_rays = 80  # Número de raios
+num_rays = 40  # Número de raios
 x_rays = np.linspace(-lens_size_x/2, lens_size_x/2, num_rays)  # Posições iniciais dos raios
 z_rays = np.linspace(0, d, 100)  # Posições ao longo do eixo z
 
@@ -286,9 +265,9 @@ plt.plot(r, z2_y + z_lens, color="blue")
 
 plt.axvline(x=0, ymin=0, ymax=0.01, color="red", label="LED")
 plt.axhline(y=d, xmin=-0.5, xmax=0.5, color="gray", label="Anteparo")
-plt.xlabel("Position Y (m)")
-plt.ylabel("Distance Z (m)")
-plt.title("Light Propagation (y-z Plane)")
+plt.xlabel("Posição Y (m)")
+plt.ylabel("Distância Z (m)")
+plt.title("Propagação da Luz (Plano y-z)")
 plt.legend()
 plt.grid()
 plt.show()
@@ -297,18 +276,18 @@ plt.show()
 plt.figure(figsize=(8, 6))
 plt.imshow(I_propagated, extent=(-3, 3, -6, 6), cmap="hot", origin="lower")
 plt.colorbar(label="Intensidade (normalizada)")
-plt.xlabel("Position X (m)")
-plt.ylabel("Position Y (m)")
-plt.title("Illumination (2D) - 6 m Distant")
+plt.xlabel("Posição X (m)")
+plt.ylabel("Posição Y (m)")
+plt.title("Iluminação Real no Anteparo (2D) - 6 m de Distância")
 plt.show()
 
 # --- Visualização 3D da Iluminação Real no Anteparo (no final) ---
 fig = plt.figure(figsize=(10, 8))
 ax = fig.add_subplot(111, projection='3d')
 surf = ax.plot_surface(X_anteparo, Y_anteparo, I_propagated, cmap='hot', edgecolor='none')
-ax.set_xlabel("Position X (m)")
-ax.set_ylabel("Position Y (m)")
-ax.set_zlabel("Normalized Intensity")
-ax.set_title("Illumination (3D) - 6 m de Distant")
-fig.colorbar(surf, ax=ax, label="Normalized Intensity")
+ax.set_xlabel("Posição X (m)")
+ax.set_ylabel("Posição Y (m)")
+ax.set_zlabel("Intensidade (normalizada)")
+ax.set_title("Iluminação Real no Anteparo (3D) - 6 m de Distância")
+fig.colorbar(surf, ax=ax, label="Intensidade (normalizada)")
 plt.show()
